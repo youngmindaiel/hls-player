@@ -14,7 +14,8 @@
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,"Segoe UI",Roboto,"Noto Sans KR",sans-serif}
   body{padding:16px max(16px,env(safe-area-inset-right)) 32px max(16px,env(safe-area-inset-left))}
-  main{max-width:900px;margin:0 auto;display:grid;gap:12px}
+  main{max-width:900px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+  main>*{min-width:0}
   h1{font-size:18px;margin:4px 0 0;font-weight:600}
   form{display:flex;gap:8px;flex-wrap:wrap}
   input[type=url]{flex:1 1 240px;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--fg);font-size:15px}
@@ -30,7 +31,7 @@
   ul{margin:6px 0 0;padding-left:18px}
   li{margin:2px 0}
   .recent{display:flex;gap:6px;flex-wrap:wrap}
-  .recent button{font-size:12px;padding:6px 10px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .recent button{min-width:0;font-size:12px;padding:6px 10px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -80,7 +81,7 @@
       });
       hls.on(Hls.Events.ERROR,function(e,d){
         if(d.fatal){
-          if(d.type===Hls.ErrorTypes.NETWORK_ERROR){say('네트워크 오류: '+(d.details||'')+' — CORS 또는 주소 확인',true);hls.startLoad()}
+          if(d.type===Hls.ErrorTypes.NETWORK_ERROR){var c=d.response&&d.response.code;var why=c===0||c===undefined?'응답 없음(CORS 차단·네트워크·주소 오타)':c===403?'403 접근 거부(지역·토큰 제한 또는 만료된 주소)':c===404?'404 주소 없음(방송 종료 또는 오타)':'HTTP '+c;say('네트워크 오류: '+d.details+' · '+why,true);if(d.details!=='manifestLoadError')hls.startLoad()}
           else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){say('미디어 오류, 복구 시도 중',true);hls.recoverMediaError()}
           else{var m='재생 불가: '+d.details;if(/codec/i.test(d.details))m='이 브라우저가 스트림 코덱(HEVC/H.265)을 디코딩하지 못합니다. Safari, Edge(HEVC 확장 설치) 또는 VLC를 쓰세요.';say(m,true);hls.destroy()}
         }
@@ -90,7 +91,7 @@
     }else{say('이 브라우저는 HLS를 지원하지 않습니다',true);return}
     saveRecent(src);
   }
-  document.getElementById('f').addEventListener('submit',function(e){e.preventDefault();play(u.value.trim())});
+  document.getElementById('f').addEventListener('submit',function(e){e.preventDefault();u.value=u.value.replace(/\s+/g,'');play(u.value)});
   document.getElementById('paste').onclick=function(){if(navigator.clipboard&&navigator.clipboard.readText){navigator.clipboard.readText().then(function(t){u.value=t.trim();play(u.value)}).catch(function(){u.focus()})}else u.focus()};
   q.onchange=function(){if(hls)hls.currentLevel=parseInt(q.value,10)};
   document.getElementById('rate').onchange=function(e){v.playbackRate=parseFloat(e.target.value)};
