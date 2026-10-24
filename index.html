@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HLS 플레이어</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f1115">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{--bg:#0f1115;--fg:#e8eaf0;--mute:#8a90a3;--panel:#1a1d25;--line:#2a2e3a;--acc:#4fa3ff;--bad:#ff6b6b;color-scheme:dark}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,"Segoe UI",Roboto,"Noto Sans KR",sans-serif}
+  body{padding:16px max(16px,env(safe-area-inset-right)) 32px max(16px,env(safe-area-inset-left))}
+  main{max-width:900px;margin:0 auto;display:grid;gap:12px}
+  h1{font-size:18px;margin:4px 0 0;font-weight:600}
+  form{display:flex;gap:8px;flex-wrap:wrap}
+  input[type=url]{flex:1 1 240px;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--fg);font-size:15px}
+  button{padding:10px 16px;border:0;border-radius:8px;background:var(--acc);color:#fff;font-weight:600;font-size:15px;cursor:pointer}
+  button.ghost{background:var(--panel);color:var(--fg);border:1px solid var(--line)}
+  video{width:100%;max-width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;display:block}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--fg)}
+  #status{color:var(--mute);font-size:13px;min-height:1.4em}
+  #status.err{color:var(--bad)}
+  details{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--mute)}
+  summary{cursor:pointer;color:var(--fg)}
+  ul{margin:6px 0 0;padding-left:18px}
+  li{margin:2px 0}
+  .recent{display:flex;gap:6px;flex-wrap:wrap}
+  .recent button{font-size:12px;padding:6px 10px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>
+</head>
+<body>
+<main>
+  <h1>HLS 플레이어</h1>
+  <form id="f">
+    <input id="url" type="url" placeholder="https://…/playlist.m3u8" required>
+    <button type="submit">재생</button>
+    <button type="button" class="ghost" id="paste">붙여넣기</button>
+  </form>
+  <video id="v" controls playsinline></video>
+  <div class="row">
+    <label>화질 <select id="q"><option value="-1">자동</option></select></label>
+    <label>속도 <select id="rate"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.25</option><option>1.5</option><option>2</option></select></label>
+    <button type="button" class="ghost" id="pip">PiP</button>
+    <button type="button" class="ghost" id="fs">전체화면</button>
+  </div>
+  <div id="status"></div>
+  <div class="recent" id="recent"></div>
+  <details><summary>재생이 안 될 때</summary>
+    <ul>
+      <li>스트림 서버가 CORS 헤더(Access-Control-Allow-Origin)를 주지 않으면 브라우저에서는 재생이 불가합니다. 이 경우 VLC 같은 네이티브 앱을 쓰세요.</li>
+      <li>http:// 주소는 https 페이지에서 차단됩니다. 이 파일을 로컬(file://)로 열면 대부분 재생됩니다.</li>
+      <li>DRM(Widevine/FairPlay)이 걸린 스트림은 지원하지 않습니다.</li>
+      <li>iOS Safari는 hls.js 없이 네이티브로 재생합니다(화질 선택 메뉴는 비활성).</li>
+    </ul>
+  </details>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.6.5/hls.min.js"></script>
+<script>
+(function(){
+  var v=document.getElementById('v'),u=document.getElementById('url'),st=document.getElementById('status'),q=document.getElementById('q'),hls=null;
+  function say(m,err){st.textContent=m;st.className=err?'err':''}
+  function loadRecent(){try{return JSON.parse(localStorage.getItem('hls_recent')||'[]')}catch(e){return []}}
+  function saveRecent(x){try{var r=loadRecent().filter(function(a){return a!==x});r.unshift(x);localStorage.setItem('hls_recent',JSON.stringify(r.slice(0,6)));renderRecent()}catch(e){}}
+  function renderRecent(){var box=document.getElementById('recent');box.innerHTML='';loadRecent().forEach(function(x){var b=document.createElement('button');b.type='button';b.className='ghost';b.textContent=x.replace(/^https?:\/\//,'');b.title=x;b.onclick=function(){u.value=x;play(x)};box.appendChild(b)})}
+  function hevcOK(){try{return window.MediaSource&&MediaSource.isTypeSupported('video/mp4;codecs="hev1.1.6.L120.B0"')}catch(e){return false}}
+  function play(src){
+    if(hls){hls.destroy();hls=null}
+    q.innerHTML='<option value="-1">자동</option>';
+    if(window.Hls&&Hls.isSupported()){
+      hls=new Hls({enableWorker:true,lowLatencyMode:true});
+      hls.loadSource(src);hls.attachMedia(v);if(!hevcOK())say('참고: 이 브라우저는 HEVC(H.265) 하드웨어 디코딩이 없습니다. H.265 전용 스트림은 재생되지 않습니다.');
+      hls.on(Hls.Events.MANIFEST_PARSED,function(e,d){
+        d.levels.forEach(function(l,i){var o=document.createElement('option');o.value=i;o.textContent=(l.height?l.height+'p':'')+(l.bitrate?' · '+Math.round(l.bitrate/1000)+'kbps':'');q.appendChild(o)});
+        say('매니페스트 로드됨 · 화질 '+d.levels.length+'개');v.play().catch(function(){});
+      });
+      hls.on(Hls.Events.ERROR,function(e,d){
+        if(d.fatal){
+          if(d.type===Hls.ErrorTypes.NETWORK_ERROR){say('네트워크 오류: '+(d.details||'')+' — CORS 또는 주소 확인',true);hls.startLoad()}
+          else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){say('미디어 오류, 복구 시도 중',true);hls.recoverMediaError()}
+          else{var m='재생 불가: '+d.details;if(/codec/i.test(d.details))m='이 브라우저가 스트림 코덱(HEVC/H.265)을 디코딩하지 못합니다. Safari, Edge(HEVC 확장 설치) 또는 VLC를 쓰세요.';say(m,true);hls.destroy()}
+        }
+      });
+    }else if(v.canPlayType('application/vnd.apple.mpegurl')){
+      v.src=src;v.addEventListener('loadedmetadata',function(){v.play().catch(function(){})},{once:true});say('네이티브 HLS 재생');
+    }else{say('이 브라우저는 HLS를 지원하지 않습니다',true);return}
+    saveRecent(src);
+  }
+  document.getElementById('f').addEventListener('submit',function(e){e.preventDefault();play(u.value.trim())});
+  document.getElementById('paste').onclick=function(){if(navigator.clipboard&&navigator.clipboard.readText){navigator.clipboard.readText().then(function(t){u.value=t.trim();play(u.value)}).catch(function(){u.focus()})}else u.focus()};
+  q.onchange=function(){if(hls)hls.currentLevel=parseInt(q.value,10)};
+  document.getElementById('rate').onchange=function(e){v.playbackRate=parseFloat(e.target.value)};
+  document.getElementById('pip').onclick=function(){if(document.pictureInPictureElement)document.exitPictureInPicture();else if(v.requestPictureInPicture)v.requestPictureInPicture().catch(function(){say('PiP 미지원',true)})};
+  document.getElementById('fs').onclick=function(){if(v.requestFullscreen)v.requestFullscreen();else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen()};
+  var h=location.hash.slice(1);if(h&&/^https?:/.test(decodeURIComponent(h))){u.value=decodeURIComponent(h);play(u.value)}
+  renderRecent();
+})();
+</script>
+<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(function(){});</script>
+</body>
+</html>
