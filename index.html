@@ -96,7 +96,10 @@
   q.onchange=function(){if(hls)hls.currentLevel=parseInt(q.value,10)};
   document.getElementById('rate').onchange=function(e){v.playbackRate=parseFloat(e.target.value)};
   document.getElementById('pip').onclick=function(){if(document.pictureInPictureElement)document.exitPictureInPicture();else if(v.requestPictureInPicture)v.requestPictureInPicture().catch(function(){say('PiP 미지원',true)})};
-  document.getElementById('fs').onclick=function(){if(v.requestFullscreen)v.requestFullscreen();else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen()};
+  function lockLand(){try{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(function(){})}catch(e){}}
+  function unlockOri(){try{if(screen.orientation&&screen.orientation.unlock)screen.orientation.unlock()}catch(e){}}
+  document.getElementById('fs').onclick=function(){if(v.requestFullscreen)v.requestFullscreen().then(lockLand).catch(function(){});else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen()};
+  document.addEventListener('fullscreenchange',function(){if(document.fullscreenElement)lockLand();else unlockOri()});
   var h=location.hash.slice(1);if(h&&/^https?:/.test(decodeURIComponent(h))){u.value=decodeURIComponent(h);play(u.value)}
   renderRecent();
 })();
